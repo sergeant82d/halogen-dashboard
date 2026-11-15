@@ -4,11 +4,13 @@
   import Chart from './components/Chart.svelte';
   import Header from './components/Header.svelte';
   import Panels from './components/Panels.svelte';
+  import RangeSummary from './components/RangeSummary.svelte';
   import Tiles from './components/Tiles.svelte';
   import { CHARTS } from './lib/charts';
   import { layout, type BlockDef } from './lib/layout.svelte';
   import { dash } from './lib/store.svelte';
 
+  const SOURCE = { rollup: 'One-minute Rollups', hourly: 'Hourly Rollups', daily: 'Daily Rollups' } as const;
   const PANELS = [
     { id: 'cache', title: 'Prompt cache' },
     { id: 'kv', title: 'KV pool' },
@@ -21,6 +23,7 @@
   const panelId = new Map(PANELS.map((p) => [`panel-${p.id}`, p.id]));
   layout.setDefaults([
     ...CHARTS.map((c): BlockDef => ({ id: `chart-${c.id}`, title: c.title, width: c.wide ? 12 : 4 })),
+    { id: 'summary', title: 'Range summary', width: 12 },
     ...PANELS.map((p): BlockDef => ({ id: `panel-${p.id}`, title: p.title, width: 3 })),
   ]);
   const blocks = $derived(layout.blocks);
@@ -55,15 +58,17 @@
     <span><i class="k-outage" aria-hidden="true"></i>Outage</span>
     <span><i class="k-degraded" aria-hidden="true"></i>Degraded</span>
     <span><i class="k-restart" aria-hidden="true"></i>Restart</span>
-    <span class="src">{dash.source === 'rollup' ? 'One-minute Rollups: lines show the mean, shaded bands reach the maximum' : 'Raw Samples, 30 s rate window'}</span>
+    <span class="src">{dash.source === 'raw' ? 'Raw Samples, 30 s rate window' : `${SOURCE[dash.source]}: lines show the mean, shaded bands reach the maximum`}</span>
   </div>
 
   <section class="blocks" aria-label="Charts and details">
-    <h2 class="sr-only">Charts, {dash.rangeDef.name.toLowerCase()}{dash.source === 'rollup' ? ', one-minute Rollups' : ''}</h2>
+    <h2 class="sr-only">Charts, {dash.rangeDef.name.toLowerCase()}{dash.source === 'raw' ? '' : `, ${SOURCE[dash.source].toLowerCase()}`}</h2>
     {#each blocks as b, i (b.id)}
       <Block block={b} first={i === 0} last={i === blocks.length - 1}>
         {#if chartDef.has(b.id)}
           <Chart def={chartDef.get(b.id)!} />
+        {:else if b.id === 'summary'}
+          <RangeSummary />
         {:else if panelId.has(b.id)}
           <Panels id={panelId.get(b.id)!} />
         {/if}

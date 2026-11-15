@@ -21,7 +21,9 @@ async fn old_frames_rollups_and_checkpoint_serve_http_series_after_upgrade() {
     }});
     let frame =
         json!({"sample":sample, "counters":[110,0,0,0,0,0,0,0,0,0,0], "kv_pool":100, "segment":0});
-    let rollup = json!({"t":0, "stats":vec![json!({"min":2,"max":2,"sum":2,"count":1});15], "status":"up", "first":frame, "last":frame});
+    // A recent minute: older Rollups are pruned, and ranges past 30 days read hourly or daily Rollups.
+    let old = now_ms() / 60_000 * 60_000 - 120_000;
+    let rollup = json!({"t":old, "stats":vec![json!({"min":2,"max":2,"sum":2,"count":1});15], "status":"up", "first":frame, "last":frame});
     let tracker = json!({"previous":{"halogen:requests_total":10}, "offsets":[100,0,0,0,0,0,0,0,0,0,0], "adjusted":[110,0,0,0,0,0,0,0,0,0,0], "exact_seconds":[0,0], "restarts":2, "history":[frame], "segment":0, "outage":false});
     let _: Frame = serde_json::from_value(frame.clone()).unwrap();
     let _: Rollup = serde_json::from_value(rollup.clone()).unwrap();
@@ -39,8 +41,8 @@ async fn old_frames_rollups_and_checkpoint_serve_http_series_after_upgrade() {
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO rollups(t,data) VALUES(0,?1)",
-        [rollup.to_string()],
+        "INSERT INTO rollups(t,data) VALUES(?1,?2)",
+        rusqlite::params![old, rollup.to_string()],
     )
     .unwrap();
     conn.execute(
@@ -56,7 +58,10 @@ async fn old_frames_rollups_and_checkpoint_serve_http_series_after_upgrade() {
     let task = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
-    let response = reqwest::get(format!("{url}/api/series?from=0&to=60000&step=60000"))
+    let response = reqwest::get(format!(
+        "{url}/api/series?from={old}&to={}&step=60000",
+        old + 60_000
+    ))
         .await
         .unwrap();
     assert!(response.status().is_success());

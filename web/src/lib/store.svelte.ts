@@ -3,9 +3,9 @@
 
 import { fetchEvents, fetchSeries } from './api';
 import { mergeIntervals, TimeBuffer, type Interval } from './buffer';
-import type { CacheInfo, HEvent, Info, Sample, Series, Snapshot, Totals } from './types';
+import type { CacheInfo, HEvent, Info, Sample, Series, SeriesField, Snapshot, Source, Summary, Totals } from './types';
 
-export type RangeId = 'live' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d';
+export type RangeId = 'live' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d' | '1y';
 
 export interface RangeDef {
   id: RangeId;
@@ -29,6 +29,7 @@ export const RANGES: RangeDef[] = [
   { id: '24h', label: '24h', name: 'Last 24 hours', ms: DAY, refresh: 30_000 },
   { id: '7d', label: '7d', name: 'Last 7 days', ms: 7 * DAY, refresh: 60_000 },
   { id: '30d', label: '30d', name: 'Last 30 days', ms: 30 * DAY, refresh: 120_000 },
+  { id: '1y', label: '1y', name: 'Last year', ms: 365 * DAY, refresh: 600_000 },
 ];
 
 /** Window of the sparklines and of Live mode. */
@@ -79,8 +80,10 @@ class Dashboard {
   version = $state(0);
   /** Bumped when the live 5-minute buffer changes. */
   liveVersion = $state(0);
-  source = $state<'raw' | 'rollup'>('raw');
+  source = $state<Source>('raw');
   rangeTotals = $state.raw<Totals | null>(null);
+  /** Mean, low and high of each field over the selected range. */
+  summary = $state.raw<Summary | null>(null);
   loading = $state(false);
   error = $state<string | null>(null);
   /** 1 Hz clock for ages and Uptime. */
@@ -314,6 +317,7 @@ class Dashboard {
       this.histEvents = [...ev].sort((a, b) => a.t - b.t);
       this.source = s.source;
       this.rangeTotals = s.totals_in_range;
+      this.summary = s.summary ?? null;
       this.xFrom = s.from || from;
       this.xTo = s.to || to;
       this.error = null;
@@ -343,6 +347,7 @@ class Dashboard {
       this.hist.clear();
       this.histEvents = [];
       this.rangeTotals = null;
+      this.summary = null;
       this.scheduleDraw();
       void this.loadHist();
       this.refreshTimer = setInterval(() => {
@@ -370,6 +375,15 @@ class Dashboard {
       const end = this.live.lastT() ?? Date.now();
       this.xTo = end;
       this.xFrom = end - LIVE_MS;
+      // Live Samples are raw, so the summary comes straight from the buffer.
+      const summary: Summary = {};
+      for (const [f, col] of Object.entries(this.live.cols) as [SeriesField, (number | null)[]][]) {
+        const v = col.filter((x): x is number => x !== null);
+        summary[f] = v.length
+          ? { mean: v.reduce((a, b) => a + b, 0) / v.length, min: Math.min(...v), max: Math.max(...v) }
+          : { mean: null, min: null, max: null };
+      }
+      this.summary = summary;
     }
     const events = this.isLive ? this.events : this.histEvents;
     const outage = buf.runs('down');

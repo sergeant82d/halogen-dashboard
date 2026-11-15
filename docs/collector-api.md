@@ -21,6 +21,7 @@ Each Collector flag also reads an environment variable. `docker-compose.yml` set
 | `--halogen-url` | `HALOGEN_URL` | `http://192.168.50.177:8731` |
 | `--listen` | `HALOGEN_DASHBOARD_LISTEN` | `0.0.0.0:8790` |
 | `--db` | `HALOGEN_DASHBOARD_DB` | `./data/halogen-dashboard.sqlite` |
+| - | `HALOGEN_DASHBOARD_UTC_OFFSET_HOURS` | `0`: local time minus UTC, so daily Rollups start at local midnight (fixed; DST is not followed) |
 
 Log level: `RUST_LOG`. `fake-halogen` reads `FAKE_HALOGEN_LISTEN`, `FAKE_HALOGEN_SEED`, `FAKE_HALOGEN_SPEED` and `FAKE_HALOGEN_CHAOS`.
 
@@ -155,7 +156,7 @@ interface Event { t: number; kind: EventKind; from?: Status; to?: Status; detail
 
 ```ts
 interface Series {
-  from: number; to: number; step: number; source: "raw" | "rollup";
+  from: number; to: number; step: number; source: "raw" | "rollup" | "hourly" | "daily";
   t: number[];                      // bucket start, ms
   // columns have the same length as t; null for no data or Outage:
   busy_slots: (number|null)[]; queued: ...; kv_use: ...; kv_reserved_use: ...; // kv_reserved / kv_pool
@@ -173,6 +174,8 @@ interface Series {
   cpu_temp_max: ...; gpu_temp_max: ...; apu_power_max: ...;
   status: (Status|null)[];          // worst status in the bucket
   totals_in_range: Totals;          // adjusted counter change from `from` to `to`
+  summary: { [field: string]: { mean: number|null; min: number|null; max: number|null } };
+                                    // every numeric column over the whole range, from the Samples' min/mean/max
 }
 ```
 
@@ -188,4 +191,6 @@ Gauge columns show the mean in each bucket. Rate columns use counter changes ove
 
 ## Storage
 
-SQLite (WAL) at `--db` (default `./data/halogen-dashboard.sqlite`). Raw Samples: 48 h. One-minute Rollups (min, mean, max of each Sample number field, last adjusted counters, worst status): 30 d. Events: 30 d. A prune task runs every 10 min.
+SQLite (WAL) at `--db` (default `./data/halogen-dashboard.sqlite`). Raw Samples: 48 h. One-minute Rollups (min, mean, max of each Sample number field, last adjusted counters, worst status): 30 d. Events: 30 d. Each finished minute Rollup is also merged into an hourly Rollup (kept 366 d) and a daily Rollup (kept for all time, a few MB a year). At the first start with empty hourly and daily tables, the Collector fills them from the minute Rollups it has. A prune task runs every 10 min.
+
+`/api/series` reads raw Samples when `from` is in the last 48 h and `step` < 60 s; minute Rollups when `from` is in the last 30 d and `step` < 1 h; hourly Rollups when `from` is in the last 366 d and `step` < 1 d; daily Rollups otherwise. `step` is rounded up to the source's bucket. Hourly and daily buckets show the mean of the Sample rates (not counter changes), keep values through Outages, and report `degraded` instead of `down` when some Samples in them were Up.

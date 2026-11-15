@@ -10,6 +10,10 @@ use std::{collections::BTreeMap, path::Path};
 
 pub const RAW_MS: i64 = 48 * 60 * 60 * 1000;
 pub const RETAIN_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+pub const HOUR_MS: i64 = 60 * 60 * 1000;
+pub const DAY_MS: i64 = 24 * HOUR_MS;
+/// Hourly Rollups are kept for a year; daily Rollups are kept for all time.
+pub const HOURLY_MS: i64 = 366 * DAY_MS;
 /// The Halogen fields come first; an Outage blanks only those.
 const HALOGEN_FIELDS: usize = 25;
 pub const FIELDS: [&str; 33] = [
@@ -167,6 +171,9 @@ impl Rollup {
 pub struct Store {
     pub conn: Connection,
     pending: Option<Rollup>,
+    /// Local time minus UTC, ms, so that days start at local midnight
+    /// (HALOGEN_DASHBOARD_UTC_OFFSET_HOURS).
+    pub offset: i64,
 }
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
@@ -175,7 +182,7 @@ impl Store {
             std::fs::create_dir_all(parent)?;
         }
         let conn = Connection::open(path)?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; CREATE TABLE IF NOT EXISTS raw(t INTEGER PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS rollups(t INTEGER PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY,t INTEGER NOT NULL,data TEXT NOT NULL); CREATE INDEX IF NOT EXISTS events_time ON events(t);")?;
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; CREATE TABLE IF NOT EXISTS raw(t INTEGER PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS rollups(t INTEGER PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY,t INTEGER NOT NULL,data TEXT NOT NULL); CREATE INDEX IF NOT EXISTS events_time ON events(t); CREATE TABLE IF NOT EXISTS hourly(t INTEGER PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS daily(t INTEGER PRIMARY KEY,data TEXT NOT NULL);")?;
         let pending = conn
             .query_row(
                 "SELECT data FROM rollups ORDER BY t DESC LIMIT 1",
@@ -185,7 +192,73 @@ impl Store {
             .ok()
             .map(|s| serde_json::from_str(&s))
             .transpose()?;
-        Ok(Self { conn, pending })
+        let offset = std::env::var("HALOGEN_DASHBOARD_UTC_OFFSET_HOURS")
+            .ok()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .map_or(0, |h| (h * HOUR_MS as f64) as i64);
+        let store = Self {
+            conn,
+            pending,
+            offset,
+        };
+        store.backfill()?;
+        Ok(store)
+    }
+    /// Fills empty hourly and daily tables from the minute Rollups that already exist.
+    fn backfill(&self) -> Result<()> {
+        let hours: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM hourly", [], |r| r.get(0))?;
+        if hours > 0 {
+            return Ok(());
+        }
+        let pending = self.pending.as_ref().map_or(i64::MAX, |r| r.t);
+        let rollups: Vec<Rollup> = {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT data FROM rollups WHERE t<?1 ORDER BY t")?;
+            stmt.query_map([pending], |r| r.get::<_, String>(0))?
+                .map(|s| Ok(serde_json::from_str(&s?)?))
+                .collect::<Result<_>>()?
+        };
+        self.conn.execute_batch("BEGIN")?;
+        for r in &rollups {
+            self.fold(r)?;
+        }
+        self.conn.execute_batch("COMMIT")?;
+        Ok(())
+    }
+    /// Start of the bucket of `size` ms that holds `t`, in local time.
+    pub fn bucket(&self, t: i64, size: i64) -> i64 {
+        (t + self.offset).div_euclid(size) * size - self.offset
+    }
+    /// Adds a finished minute Rollup to its hourly and daily Rollups.
+    fn fold(&self, r: &Rollup) -> Result<()> {
+        for (table, size) in [("hourly", HOUR_MS), ("daily", DAY_MS)] {
+            let t = self.bucket(r.t, size);
+            let old = self
+                .conn
+                .query_row(
+                    &format!("SELECT data FROM {table} WHERE t=?1"),
+                    [t],
+                    |row| row.get::<_, String>(0),
+                )
+                .ok()
+                .map(|s| serde_json::from_str::<Rollup>(&s))
+                .transpose()?;
+            let merged = match old {
+                Some(mut b) => {
+                    b.merge(r);
+                    b
+                }
+                None => Rollup { t, ..r.clone() },
+            };
+            self.conn.execute(
+                &format!("INSERT OR REPLACE INTO {table}(t,data) VALUES(?1,?2)"),
+                params![t, serde_json::to_string(&merged)?],
+            )?;
+        }
+        Ok(())
     }
     pub fn insert(&mut self, frame: &Frame, raw: bool) -> Result<()> {
         if raw {
@@ -197,7 +270,9 @@ impl Store {
         let minute = frame.sample.t / 60_000 * 60_000;
         if self.pending.as_ref().is_some_and(|r| r.t != minute) {
             self.flush()?;
-            self.pending = None;
+            if let Some(done) = self.pending.take() {
+                self.fold(&done)?;
+            }
         }
         match &mut self.pending {
             Some(r) => r.add(frame),
@@ -238,6 +313,8 @@ impl Store {
         self.conn
             .execute("DELETE FROM rollups WHERE t<?1", [now - RETAIN_MS])?;
         self.conn
+            .execute("DELETE FROM hourly WHERE t<?1", [now - HOURLY_MS])?;
+        self.conn
             .execute("DELETE FROM events WHERE t<?1", [now - RETAIN_MS])?;
         Ok(())
     }
@@ -245,7 +322,7 @@ impl Store {
         let (step, source) = selection(from, to, step, now)?;
         self.flush()?;
         let window = step.max(30_000);
-        let start = from.div_euclid(step) * step;
+        let start = self.bucket(from, step);
         let mut buckets: BTreeMap<i64, Rollup> = BTreeMap::new();
         let mut frames: Vec<Frame> = Vec::new();
         if source == "raw" {
@@ -258,7 +335,7 @@ impl Store {
             for row in rows {
                 let f: Frame = serde_json::from_str(&row?)?;
                 if f.sample.t >= from {
-                    let t = f.sample.t.div_euclid(step) * step;
+                    let t = self.bucket(f.sample.t, step);
                     match buckets.get_mut(&t) {
                         Some(r) => r.add(&f),
                         None => {
@@ -269,16 +346,21 @@ impl Store {
                 frames.push(f);
             }
         } else {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT data FROM rollups WHERE t>=?1 AND t<=?2 ORDER BY t")?;
-            let rows = stmt.query_map(params![start - window - 120_000, to], |r| {
+            let (table, size) = match source {
+                "hourly" => ("hourly", HOUR_MS),
+                "daily" => ("daily", DAY_MS),
+                _ => ("rollups", 60_000),
+            };
+            let mut stmt = self.conn.prepare(&format!(
+                "SELECT data FROM {table} WHERE t>=?1 AND t<=?2 ORDER BY t"
+            ))?;
+            let rows = stmt.query_map(params![start - window - 2 * size, to], |r| {
                 r.get::<_, String>(0)
             })?;
             for row in rows {
                 let r: Rollup = serde_json::from_str(&row?)?;
-                if r.t + 60_000 > from && r.t <= to {
-                    let t = r.t.div_euclid(step) * step;
+                if r.t + size > from && r.t <= to {
+                    let t = self.bucket(r.t, step);
                     match buckets.get_mut(&t) {
                         Some(b) => b.merge(&r),
                         None => {
@@ -307,16 +389,31 @@ impl Store {
         ] {
             result[name] = json!([]);
         }
+        // Hourly and daily buckets hold many Outages and Restarts: they show the
+        // mean of the Sample rates, and Down only when no Sample was Up.
+        let long = matches!(source, "hourly" | "daily");
+        let mut summary = vec![Stat::default(); FIELDS.len()];
         for t in (start..=to).step_by(step as usize) {
             result["t"].as_array_mut().unwrap().push(json!(t));
             let r = buckets.get(&t);
+            if let Some(r) = r {
+                for (s, v) in summary.iter_mut().zip(&r.stats) {
+                    s.merge(v);
+                }
+            }
             result["status"]
                 .as_array_mut()
                 .unwrap()
-                .push(json!(r.map(|r| r.status)));
+                .push(json!(r.map(|r| {
+                    if long && r.status == Status::Down && r.stats[0].count > 0 {
+                        Status::Degraded
+                    } else {
+                        r.status
+                    }
+                })));
             let mut vs: [Option<f64>; FIELDS.len()] =
                 std::array::from_fn(|i| r.and_then(|r| r.stats[i].mean()));
-            if let Some(r) = r {
+            if let Some(r) = r.filter(|_| !long) {
                 if r.status == Status::Down {
                     vs[..HALOGEN_FIELDS].fill(None);
                 } else {
@@ -360,7 +457,7 @@ impl Store {
                 ("kv_waiting_max", 16),
             ] {
                 result[name].as_array_mut().unwrap().push(json!(
-                    r.filter(|r| r.status != Status::Down)
+                    r.filter(|r| long || r.status != Status::Down)
                         .and_then(|r| r.stats[index].max)
                 ));
             }
@@ -403,6 +500,11 @@ impl Store {
         let mut totals = totals(&delta);
         cache_totals(&mut totals, &cache_delta);
         result["totals_in_range"] = serde_json::to_value(totals)?;
+        // Mean, lowest and highest Sample value of each field over the whole range.
+        result["summary"] = json!({});
+        for (name, s) in FIELDS.iter().zip(&summary) {
+            result["summary"][*name] = json!({"mean":s.mean(),"min":s.min,"max":s.max});
+        }
         Ok(result)
     }
 }
@@ -413,19 +515,19 @@ pub fn selection(from: i64, to: i64, step: Option<i64>, now: i64) -> Result<(i64
     }
     let span = to.checked_sub(from).context("range is too large")?;
     let step = step.unwrap_or((span / 1000).max(1000)).max(1000);
-    if step > RETAIN_MS {
-        bail!("step must not exceed 30 days");
+    if step > HOURLY_MS {
+        bail!("step must not exceed 366 days");
     }
-    let source = if from >= now - RAW_MS && step < 60_000 {
-        "raw"
+    let (source, size) = if from >= now - RAW_MS && step < 60_000 {
+        ("raw", 1)
+    } else if from >= now - RETAIN_MS && step < HOUR_MS {
+        ("rollup", 60_000)
+    } else if from >= now - HOURLY_MS && step < DAY_MS {
+        ("hourly", HOUR_MS)
     } else {
-        "rollup"
+        ("daily", DAY_MS)
     };
-    let step = if source == "rollup" {
-        ((step + 59_999) / 60_000) * 60_000
-    } else {
-        step
-    };
+    let step = (step + size - 1) / size * size;
     if span / step > 100_000 {
         bail!("series exceeds 100000 points; increase step");
     }
@@ -501,6 +603,59 @@ mod tests {
         );
         assert!(selection(2, 1, None, now).is_err());
         assert!(selection(0, 1000, Some(i64::MAX), now).is_err());
+        let now = 2 * HOURLY_MS;
+        assert_eq!(
+            selection(now - 365 * DAY_MS, now, None, now).unwrap(),
+            (9 * HOUR_MS, "hourly")
+        );
+        assert_eq!(
+            selection(now - HOURLY_MS - DAY_MS, now, None, now).unwrap(),
+            (DAY_MS, "daily")
+        );
+    }
+
+    #[test]
+    fn minute_rollups_fold_into_local_hours_and_days_with_a_range_summary() {
+        let mut store = Store::open(":memory:").unwrap();
+        store.offset = -6 * HOUR_MS;
+        // Two days of one Sample a minute; GPU temperature 40 + minute of the day / 100.
+        let start = 400 * DAY_MS;
+        for m in 0..2 * 24 * 60 + 1 {
+            let mut f = Frame::default();
+            f.sample.t = start + m * 60_000;
+            f.sample.gpu_temp = Some(40.0 + (m % 1440) as f64 / 100.0);
+            f.sample.busy_slots = Some(1.0);
+            if m == 30 {
+                f.sample.status = Status::Down;
+                f.sample.busy_slots = None;
+            }
+            store.insert(&f, false).unwrap();
+        }
+        let days: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM daily", [], |r| r.get(0))
+            .unwrap();
+        // Local days start at 06:00 UTC: 00:00-06:00, a full day, and 06:00-24:00.
+        assert_eq!(days, 3);
+        let hours: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM hourly", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(hours, 48);
+        let now = start + 2 * DAY_MS;
+        let s = store
+            .series(now - HOURLY_MS - DAY_MS, now, None, now)
+            .unwrap();
+        assert_eq!(s["source"], "daily");
+        let s = store.series(start, now, Some(HOUR_MS), now).unwrap();
+        assert_eq!(s["source"], "hourly");
+        // The first hour held an Outage minute but was mostly Up.
+        assert_eq!(s["status"][0], "degraded");
+        assert_eq!(s["busy_slots"][0], 1.0);
+        assert_eq!(s["summary"]["gpu_temp"]["min"], 40.0);
+        let max = s["summary"]["gpu_temp"]["max"].as_f64().unwrap();
+        assert!((max - 54.39).abs() < 1e-9);
+        assert_eq!(s["summary"]["busy_slots"]["mean"], 1.0);
     }
 
     #[test]

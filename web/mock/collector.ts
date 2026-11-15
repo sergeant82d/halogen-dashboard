@@ -548,6 +548,13 @@ function series(from: number, to: number, stepIn: number | null) {
     ...cols,
     status,
     totals_in_range: totalsDelta(totals(Math.max(from, ORIGIN)), totals(end)),
+    // Approximate: from bucket means and maxima, not every Sample.
+    summary: Object.fromEntries(
+      FIELDS.map((f) => {
+        const v = cols[f]!.filter((x): x is number => x !== null);
+        return [f, v.length ? { mean: v.reduce((a, b) => a + b, 0) / v.length, min: Math.min(...v), max: Math.max(...v) } : { mean: null, min: null, max: null }];
+      }),
+    ),
   };
 }
 

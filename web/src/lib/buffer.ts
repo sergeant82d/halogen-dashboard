@@ -7,6 +7,7 @@ import {
   type Column,
   type Sample,
   type Series,
+  type Source,
   type SeriesField,
   type Status,
 } from './types';
@@ -21,7 +22,7 @@ export class TimeBuffer {
   status: (Status | null)[] = [];
   cols: Record<SeriesField, Column>;
   step = 1000;
-  source: 'raw' | 'rollup' = 'raw';
+  source: Source = 'raw';
 
   constructor() {
     this.cols = TimeBuffer.emptyCols();

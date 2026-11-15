@@ -77,7 +77,7 @@
     u?.destroy();
     u = null;
     if (!plotEl || width < 10 || height < 10) return;
-    const rollup = dash.source === 'rollup';
+    const rollup = dash.source !== 'raw';
     drawn = lines(rollup);
     const font = `12px ${cssVar('--font') || 'sans-serif'}`;
     const faint = cssVar('--faint');
@@ -275,7 +275,7 @@
     return col[i ?? col.length - 1] ?? null;
   }
 
-  const rollup = $derived(dash.source === 'rollup');
+  const rollup = $derived(dash.source !== 'raw');
 
   const cursorTime = $derived.by(() => {
     void dash.version;

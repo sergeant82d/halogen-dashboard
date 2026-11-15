@@ -190,8 +190,21 @@ export interface Series extends SeriesColumns {
   from: number;
   to: number;
   step: number;
-  source: 'raw' | 'rollup';
+  source: Source;
   t: number[];
   status: (Status | null)[];
   totals_in_range: Totals;
+  /** Mean, lowest and highest Sample value of each field over the range. */
+  summary?: Summary;
 }
+
+/** raw: Samples (48 h). rollup: one-minute Rollups (30 days). hourly: one year. daily: all time. */
+export type Source = 'raw' | 'rollup' | 'hourly' | 'daily';
+
+export interface Stat {
+  mean: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+export type Summary = Partial<Record<SeriesField, Stat>>;
