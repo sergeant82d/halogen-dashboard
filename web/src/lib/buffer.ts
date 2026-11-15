@@ -104,6 +104,7 @@ export class TimeBuffer {
       apu_power: x.apu_power ?? null,
       gpu_mem_used: x.gpu_mem_used ?? null,
       ram_used: x.ram_used ?? null,
+      ttft: x.ttft ?? null,
       busy_slots_max: x.busy_slots,
       queued_max: x.queued,
       kv_use_max: x.kv_use,

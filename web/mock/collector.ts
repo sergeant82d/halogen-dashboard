@@ -192,6 +192,7 @@ interface Values {
   prefill_throughput: number;
   requests_per_min: number;
   mean_service_time: number | null;
+  ttft: number | null;
   prompt_cache_hit_rate: number | null;
   draft_acceptance: number | null;
   busy_for: number;
@@ -290,6 +291,7 @@ function values(t: number): Values {
     prefill_throughput: prefillTp,
     requests_per_min: rpm,
     mean_service_time: rpm > 0.2 ? 18 + busy * 7 + n3 * 22 : null,
+    ttft: rpm > 0.2 ? 0.4 + busy * 0.3 + n2 * 1.2 : null,
     prompt_cache_hit_rate: prefill === null ? null : 0.32 + n3 * 0.42,
     draft_acceptance: gen === null ? null : 0.62 + n2 * 0.2,
     busy_for: busy > 0 ? 1.5 + busy * 6 + n3 * 38 + queued * 2 : 0,
@@ -478,6 +480,7 @@ const FIELDS = [
   'apu_power',
   'gpu_mem_used',
   'ram_used',
+  'ttft',
 ] as const;
 const NEW_COLS = new Set<string>([...NEW_FIELDS, 'busy_for_max', 'kv_waiting_max']);
 const RANK: Record<Status, number> = { up: 0, degraded: 1, down: 2 };

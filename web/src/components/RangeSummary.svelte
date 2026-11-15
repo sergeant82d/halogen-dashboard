@@ -13,6 +13,7 @@
     {
       name: 'Halogen',
       rows: [
+        { field: 'ttft', label: 'Time to first token', fmt: (v) => seconds(v) },
         { field: 'gen_speed', label: 'Generation speed', fmt: tokS },
         { field: 'prefill_speed', label: 'Prefill speed', fmt: tokS },
         { field: 'throughput', label: 'Throughput', fmt: tokS },

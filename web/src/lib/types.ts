@@ -32,6 +32,8 @@ export interface Sample {
   prefill_throughput: number | null;
   requests_per_min: number | null;
   mean_service_time: number | null;
+  /** Estimated time to first token, s: prefill seconds per request. */
+  ttft: number | null;
   prompt_cache_hit_rate: number | null;
   draft_acceptance: number | null;
   // Halogen 0.17.5+. Null when the series is missing (an old Halogen) or undefined.
@@ -170,6 +172,7 @@ export const SERIES_FIELDS = [
   'apu_power',
   'gpu_mem_used',
   'ram_used',
+  'ttft',
   'busy_slots_max',
   'queued_max',
   'kv_use_max',

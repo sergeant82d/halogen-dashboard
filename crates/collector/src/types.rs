@@ -61,6 +61,9 @@ pub struct Sample {
     pub prefill_throughput: Option<f64>,
     pub requests_per_min: Option<f64>,
     pub mean_service_time: Option<f64>,
+    /// Estimated time to first token: prefill seconds per request over the rate window.
+    #[serde(default)]
+    pub ttft: Option<f64>,
     pub prompt_cache_hit_rate: Option<f64>,
     pub draft_acceptance: Option<f64>,
     pub busy_for: Option<f64>,

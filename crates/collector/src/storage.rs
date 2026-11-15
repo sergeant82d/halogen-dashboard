@@ -16,7 +16,9 @@ pub const DAY_MS: i64 = 24 * HOUR_MS;
 pub const HOURLY_MS: i64 = 366 * DAY_MS;
 /// The Halogen fields come first; an Outage blanks only those.
 const HALOGEN_FIELDS: usize = 25;
-pub const FIELDS: [&str; 33] = [
+/// A Halogen rate added after the hardware fields.
+const TTFT: usize = 33;
+pub const FIELDS: [&str; 34] = [
     "busy_slots",
     "queued",
     "kv_used",
@@ -50,6 +52,7 @@ pub const FIELDS: [&str; 33] = [
     "apu_power",
     "gpu_mem_used",
     "ram_used",
+    "ttft",
 ];
 
 fn values(frame: &Frame) -> [Option<f64>; FIELDS.len()] {
@@ -90,6 +93,7 @@ fn values(frame: &Frame) -> [Option<f64>; FIELDS.len()] {
         s.apu_power,
         s.gpu_mem_used,
         s.ram_used,
+        s.ttft,
     ]
 }
 
@@ -416,6 +420,7 @@ impl Store {
             if let Some(r) = r.filter(|_| !long) {
                 if r.status == Status::Down {
                     vs[..HALOGEN_FIELDS].fill(None);
+                    vs[TTFT] = None;
                 } else {
                     let last = &r.last;
                     let boundary = last.sample.t - window;
@@ -444,6 +449,7 @@ impl Store {
                         s.cache_disk_hits_per_min,
                         s.cache_disk_cut_backs_per_min,
                     ]);
+                    vs[TTFT] = s.ttft;
                 }
             }
             for (name, v) in FIELDS.iter().zip(vs) {

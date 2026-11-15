@@ -234,6 +234,7 @@ pub fn apply_rates(sample: &mut Sample, first: &Frame, last: &Frame, _window_ms:
     sample.prefill_throughput = Some(d[1] / wall);
     sample.requests_per_min = Some(d[0] / wall * 60.0);
     sample.mean_service_time = ratio(d[7] + d[8], d[0]);
+    sample.ttft = ratio(d[7], d[0]);
     sample.prompt_cache_hit_rate = ratio(d[3], d[3] + d[1]);
     sample.draft_acceptance = ratio(d[5], d[4]);
     let d: [Option<f64>; 6] = std::array::from_fn(|i| {
@@ -348,6 +349,20 @@ mod tests {
             "llamacpp:prompt_tokens_seconds {ps}\nllamacpp:predicted_tokens_seconds {gs}\n"
         ));
         text
+    }
+    #[test]
+    fn ttft_is_prefill_seconds_per_request() {
+        let mut first = Frame::default();
+        let mut last = Frame::default();
+        last.sample.t = 30_000;
+        last.counters[0] = 4.0;
+        last.counters[7] = 3.0;
+        let mut s = Sample::default();
+        apply_rates(&mut s, &first, &last, 30_000);
+        assert_eq!(s.ttft, Some(0.75));
+        first.counters[0] = 4.0;
+        apply_rates(&mut s, &first, &last, 30_000);
+        assert_eq!(s.ttft, None);
     }
     #[test]
     fn kv_use_comes_from_halogen_usage_ratio() {

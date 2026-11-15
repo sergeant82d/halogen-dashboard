@@ -55,6 +55,7 @@ All rates use a rolling window of 30 s (the "rate window") in live data. In rang
 | `prefill_throughput` | d(prompt_tokens) / wall seconds | tokens/s |
 | `requests_per_min` | d(requests) / wall seconds x 60 | requests/min |
 | `mean_service_time` | d(prompt_seconds + predicted_seconds) / d(requests) | s, `null` if d(requests) = 0 |
+| `ttft` | d(prompt_seconds) / d(requests): estimated time to first token, without queue wait | s, `null` if d(requests) = 0 |
 | `prompt_cache_hit_rate` | d(cached) / (d(cached) + d(prompt_tokens)) | 0..1, `null` if denominator = 0 |
 | `draft_acceptance` | d(draft_accepted) / d(draft_tokens) | 0..1, `null` if d(draft_tokens) = 0 |
 | `cache_lookup_hit_rate` | d(cache_hits) / (d(cache_hits) + d(cache_misses)) | 0..1, `null` if denominator = 0 |
@@ -84,6 +85,7 @@ interface Sample {
   prefill_throughput: number | null;
   requests_per_min: number | null;
   mean_service_time: number | null;
+  ttft: number | null;                 // estimated time to first token, s
   prompt_cache_hit_rate: number | null;
   draft_acceptance: number | null;
   busy_for: number | null;             // oldest running request, seconds
@@ -161,7 +163,7 @@ interface Series {
   // columns have the same length as t; null for no data or Outage:
   busy_slots: (number|null)[]; queued: ...; kv_use: ...; kv_reserved_use: ...; // kv_reserved / kv_pool
   gen_speed: ...; throughput: ...; prefill_speed: ...; prefill_throughput: ...;
-  requests_per_min: ...; mean_service_time: ...;
+  requests_per_min: ...; mean_service_time: ...; ttft: ...;
   prompt_cache_hit_rate: ...; draft_acceptance: ...;
   busy_for: ...; kv_waiting: ...; cache_entries: ...; cache_bytes: ...;
   cache_lookup_hit_rate: ...; cache_evictions_per_min: ...; cache_rewrites_per_min: ...;

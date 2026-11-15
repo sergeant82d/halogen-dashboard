@@ -11,10 +11,12 @@
   const busy = $derived(s?.busy_slots ?? null);
   const svc = $derived(secondsParts(s?.mean_service_time));
   const oldest = $derived(secondsParts(s?.busy_for));
+  const ttft = $derived(secondsParts(s?.ttft));
   const tot = $derived(dash.rangeTotals);
 </script>
 
 <section class="tiles" aria-label="Live values">
+  <Tile label="Time to first token" value={ttft[0]} unit={ttft[1]} field="ttft" />
   <Tile label="Generation speed" value={rate(s?.gen_speed)} unit="tokens/s" field="gen_speed" />
   <Tile label="Throughput" value={rate(s?.throughput)} unit="tokens/s" field="throughput" />
   <Tile label="Prefill speed" value={rate(s?.prefill_speed)} unit="tokens/s" field="prefill_speed" />
@@ -67,11 +69,11 @@
 <style>
   .tiles {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
     gap: var(--sp-2);
   }
   .totals {
-    grid-column: span 2;
+    grid-column: span 3;
     background: var(--raised);
     border: 1px solid var(--line-soft);
     border-radius: var(--r-tile);
@@ -130,7 +132,7 @@
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
     .totals {
-      grid-column: 1 / -1;
+      grid-column: span 3;
     }
   }
   @media (max-width: 720px) {

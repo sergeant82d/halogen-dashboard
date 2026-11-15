@@ -135,7 +135,7 @@ export const CHARTS: ChartDef[] = [
   },
   {
     id: 'req',
-    title: 'Requests/min, Mean service time and Oldest request age',
+    title: 'Requests/min and request times',
     lines: [
       { field: 'requests_per_min', label: 'Requests/min', color: '--s1', scale: 'rpm', fmt: (v) => (v === null ? compact(v) : `${rate(v)}/min`) },
       { field: 'mean_service_time', label: 'Mean service time', color: '--s2', scale: 'sec', fmt: (v) => seconds(v) },
@@ -147,6 +147,7 @@ export const CHARTS: ChartDef[] = [
         fmt: (v) => seconds(v),
         maxOf: 'busy_for_max',
       },
+      { field: 'ttft', label: 'Time to first token', color: '--s4', scale: 'sec', fmt: (v) => seconds(v) },
     ],
     axes: [
       { scale: 'rpm', side: 'left', unit: 'requests/min', tick: numTick, minMax: 1 },
