@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { ago, absTime, bytes, compact, int, pct, span, DASH } from '../lib/format';
+  import { ago, absTime, bytes, compact, int, pct, rate, span, DASH } from '../lib/format';
   import { kvTone, STATUS_LABEL } from '../lib/status';
   import { dash } from '../lib/store.svelte';
   import type { HEvent } from '../lib/types';
 
   /** One detail panel; the page places each one as a movable block. */
-  let { id }: { id: 'cache' | 'kv' | 'npu' | 'log' } = $props();
+  let { id }: { id: 'cache' | 'kv' | 'npu' | 'hardware' | 'log' } = $props();
   import Meter from './Meter.svelte';
 
   const c = $derived(dash.cache);
@@ -34,6 +34,9 @@
   // The Sample is fresher than the /cache Scrape. Use /cache only when the Sample has no value.
   const waiting = $derived(latest?.kv_waiting ?? pool?.waiting_for_room ?? null);
   const events = $derived(dash.logEvents);
+  const share = (used: number | null | undefined, total: number | null | undefined) =>
+    used != null && total ? used / total : null;
+  const deg = (v: number | null | undefined) => (v == null ? DASH : `${rate(v)} °C`);
 
   function evText(e: HEvent): string {
     switch (e.kind) {
@@ -154,6 +157,43 @@
       </dl>
     {:else}
       <p class="none">{info ? 'Halogen reports no NPU.' : 'No /health Scrape yet.'}</p>
+    {/if}
+  </article>
+
+{:else if id === 'hardware'}
+  <article class="card panel">
+    <header>
+      <h2>Hardware</h2>
+      {#if latest?.apu_power != null}<span class="aside num">APU {rate(latest.apu_power)} W</span>{/if}
+    </header>
+    {#if latest && (latest.cpu_use != null || latest.gpu_use != null || latest.ram_total != null)}
+      <div class="gauge">
+        <div class="glabel"><span>GPU use</span><span class="num">{pct(latest.gpu_use)}</span></div>
+        <Meter value={latest.gpu_use ?? null} label="GPU use" />
+      </div>
+      <div class="gauge">
+        <div class="glabel"><span>CPU use</span><span class="num">{pct(latest.cpu_use)}</span></div>
+        <Meter value={latest.cpu_use ?? null} label="CPU use" />
+      </div>
+      <div class="gauge">
+        <div class="glabel">
+          <span>GPU memory</span>
+          <span class="num">{bytes(latest.gpu_mem_used)} / {bytes(latest.gpu_mem_total)}</span>
+        </div>
+        <Meter value={share(latest.gpu_mem_used, latest.gpu_mem_total)} label="GPU memory used" />
+      </div>
+      <div class="gauge">
+        <div class="glabel"><span>RAM</span><span class="num">{bytes(latest.ram_used)} / {bytes(latest.ram_total)}</span></div>
+        <Meter value={share(latest.ram_used, latest.ram_total)} label="RAM used" />
+      </div>
+      <dl class="kv">
+        <dt>GPU temperature</dt><dd class="num">{deg(latest.gpu_temp)}</dd>
+        <dt>CPU temperature</dt><dd class="num">{deg(latest.cpu_temp)}</dd>
+        <dt>SSD temperature</dt><dd class="num">{deg(latest.nvme_temp)}</dd>
+        <dt>GPU clock</dt><dd class="num">{latest.gpu_clock == null ? DASH : `${int(latest.gpu_clock)} MHz`}</dd>
+      </dl>
+    {:else}
+      <p class="none">The Collector's host reports no hardware values.</p>
     {/if}
   </article>
 

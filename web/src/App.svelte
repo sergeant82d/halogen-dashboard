@@ -13,6 +13,7 @@
     { id: 'cache', title: 'Prompt cache' },
     { id: 'kv', title: 'KV pool' },
     { id: 'npu', title: 'NPU' },
+    { id: 'hardware', title: 'Hardware' },
     { id: 'log', title: 'Event log' },
   ] as const;
   // Block ids: chart ids and panel ids overlap (kv, cache), so each kind has a prefix.

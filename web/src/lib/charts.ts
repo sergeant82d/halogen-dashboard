@@ -42,6 +42,8 @@ const tokS = (v: number | null) => (v === null ? rate(v) : `${rate(v)} tokens/s`
 const pctTick = (v: number) => `${Math.round(v * 100)}%`;
 const numTick = (v: number) => compact(v);
 const secTick = (v: number) => (v < 1 && v > 0 ? `${Math.round(v * 1000)} ms` : `${compact(v)} s`);
+const celsius = (v: number | null) => (v === null ? rate(v) : `${rate(v)} °C`);
+const watts = (v: number | null) => (v === null ? rate(v) : `${rate(v)} W`);
 const perMin = (v: number | null) => (v === null ? rate(v) : `${rate(v)}/min`);
 const count = (v: number | null) => compact(v);
 const tickNf = (d: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: d });
@@ -166,5 +168,37 @@ export const CHARTS: ChartDef[] = [
       { scale: 'pm', side: 'left', unit: 'per min', tick: numTick, minMax: 1 },
       { scale: 'bytes', side: 'right', unit: 'bytes', tick: byteTick, minMax: 1024 * 1024, binary: true },
     ],
+  },
+  {
+    id: 'hw-use',
+    title: 'CPU use, GPU use and APU power',
+    lines: [
+      { field: 'gpu_use', label: 'GPU use', color: '--s1', scale: 'pct', fmt: (v) => pct(v), fill: true },
+      { field: 'cpu_use', label: 'CPU use', color: '--s2', scale: 'pct', fmt: (v) => pct(v) },
+      { field: 'apu_power', label: 'APU power', color: '--s4', scale: 'w', fmt: watts, maxOf: 'apu_power_max' },
+    ],
+    axes: [
+      { scale: 'pct', side: 'left', unit: '%', tick: pctTick, range: [0, 1] },
+      { scale: 'w', side: 'right', unit: 'W', tick: numTick, minMax: 20 },
+    ],
+  },
+  {
+    id: 'hw-temp',
+    title: 'Temperatures',
+    lines: [
+      { field: 'gpu_temp', label: 'GPU', color: '--s1', scale: 'c', fmt: celsius, maxOf: 'gpu_temp_max' },
+      { field: 'cpu_temp', label: 'CPU', color: '--s2', scale: 'c', fmt: celsius, maxOf: 'cpu_temp_max' },
+      { field: 'nvme_temp', label: 'SSD', color: '--s5', scale: 'c', fmt: celsius },
+    ],
+    axes: [{ scale: 'c', side: 'left', unit: '°C', tick: numTick, minMax: 50 }],
+  },
+  {
+    id: 'hw-mem',
+    title: 'GPU memory and RAM used',
+    lines: [
+      { field: 'gpu_mem_used', label: 'GPU memory', color: '--s1', scale: 'bytes', fmt: (v) => bytes(v), fill: true },
+      { field: 'ram_used', label: 'RAM', color: '--s2', scale: 'bytes', fmt: (v) => bytes(v) },
+    ],
+    axes: [{ scale: 'bytes', side: 'left', unit: 'bytes', tick: byteTick, minMax: 1024 ** 3, binary: true }],
   },
 ];

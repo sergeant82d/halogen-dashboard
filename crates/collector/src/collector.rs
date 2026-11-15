@@ -1,4 +1,5 @@
 use crate::{
+    hardware::Hardware,
     metrics::parse,
     rates::CounterTracker,
     storage::Store,
@@ -43,6 +44,7 @@ struct Inner {
     uptime_since: Option<i64>,
     last_scrape_ok: Option<i64>,
     outage: bool,
+    hardware: Hardware,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -87,6 +89,7 @@ impl App {
                 uptime_since: p.uptime_since,
                 last_scrape_ok: p.last_scrape_ok,
                 outage: p.outage,
+                hardware: Hardware::default(),
             })),
             tx,
         })
@@ -111,7 +114,8 @@ impl App {
         } else {
             Status::Down
         };
-        let (frame, restart) = i.tracker.sample(t, text, status);
+        let (mut frame, restart) = i.tracker.sample(t, text, status);
+        i.hardware.apply(&mut frame.sample);
         if restart {
             self.record_event(&mut i, Event::new(t, "restart"))?;
             i.uptime_since = Some(t);

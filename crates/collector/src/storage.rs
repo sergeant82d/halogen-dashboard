@@ -10,7 +10,9 @@ use std::{collections::BTreeMap, path::Path};
 
 pub const RAW_MS: i64 = 48 * 60 * 60 * 1000;
 pub const RETAIN_MS: i64 = 30 * 24 * 60 * 60 * 1000;
-pub const FIELDS: [&str; 25] = [
+/// The Halogen fields come first; an Outage blanks only those.
+const HALOGEN_FIELDS: usize = 25;
+pub const FIELDS: [&str; 33] = [
     "busy_slots",
     "queued",
     "kv_used",
@@ -36,6 +38,14 @@ pub const FIELDS: [&str; 25] = [
     "cache_disk_hits_per_min",
     "cache_disk_cut_backs_per_min",
     "cache_disk_bytes",
+    "cpu_use",
+    "cpu_temp",
+    "gpu_use",
+    "gpu_temp",
+    "nvme_temp",
+    "apu_power",
+    "gpu_mem_used",
+    "ram_used",
 ];
 
 fn values(frame: &Frame) -> [Option<f64>; FIELDS.len()] {
@@ -68,6 +78,14 @@ fn values(frame: &Frame) -> [Option<f64>; FIELDS.len()] {
         s.cache_disk_hits_per_min,
         s.cache_disk_cut_backs_per_min,
         s.cache_disk_bytes,
+        s.cpu_use,
+        s.cpu_temp,
+        s.gpu_use,
+        s.gpu_temp,
+        s.nvme_temp,
+        s.apu_power,
+        s.gpu_mem_used,
+        s.ram_used,
     ]
 }
 
@@ -283,6 +301,9 @@ impl Store {
             "kv_use_max",
             "busy_for_max",
             "kv_waiting_max",
+            "cpu_temp_max",
+            "gpu_temp_max",
+            "apu_power_max",
         ] {
             result[name] = json!([]);
         }
@@ -297,7 +318,7 @@ impl Store {
                 std::array::from_fn(|i| r.and_then(|r| r.stats[i].mean()));
             if let Some(r) = r {
                 if r.status == Status::Down {
-                    vs = [None; FIELDS.len()];
+                    vs[..HALOGEN_FIELDS].fill(None);
                 } else {
                     let last = &r.last;
                     let boundary = last.sample.t - window;
@@ -342,6 +363,16 @@ impl Store {
                     r.filter(|r| r.status != Status::Down)
                         .and_then(|r| r.stats[index].max)
                 ));
+            }
+            for (name, index) in [
+                ("cpu_temp_max", 26),
+                ("gpu_temp_max", 28),
+                ("apu_power_max", 30),
+            ] {
+                result[name]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!(r.and_then(|r| r.stats[index].max)));
             }
         }
         let first = frames

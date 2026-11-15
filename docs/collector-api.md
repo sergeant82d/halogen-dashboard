@@ -32,7 +32,11 @@ Log level: `RUST_LOG`. `fake-halogen` reads `FAKE_HALOGEN_LISTEN`, `FAKE_HALOGEN
 | `/health` | 2 s | 3 s |
 | `/cache` | 5 s | 3 s |
 
-A failed `/metrics` Scrape starts or continues an Outage. The Sample for that tick has `status: "down"` and `null` for all Halogen values.
+A failed `/metrics` Scrape starts or continues an Outage. The Sample for that tick has `status: "down"` and `null` for all Halogen values. Hardware values (below) are still filled in.
+
+## Hardware
+
+With each `/metrics` tick the Collector also reads its own host: `/proc/stat`, `/proc/meminfo`, the hwmon devices `k10temp`, `amdgpu` and `nvme` in `/sys/class/hwmon`, and the first amdgpu card in `/sys/class/drm` (`gpu_busy_percent`, `mem_info_*`). In a container these are the host's files. A value the host does not offer is `null`. GPU memory is VRAM + GTT: on Strix Halo most GPU memory is GTT.
 
 ## Rate calculation
 
@@ -94,6 +98,17 @@ interface Sample {
   cache_rewrites_per_min: number | null;
   cache_disk_hits_per_min: number | null;
   cache_disk_cut_backs_per_min: number | null;
+  cpu_use: number | null;              // 0..1, not idle or iowait since the last tick
+  cpu_temp: number | null;             // °C, k10temp temp1 (Tctl)
+  gpu_use: number | null;              // 0..1, gpu_busy_percent
+  gpu_temp: number | null;             // °C, amdgpu temp1 (edge)
+  nvme_temp: number | null;            // °C, nvme temp1 (composite)
+  apu_power: number | null;            // W, amdgpu power1_average (PPT: CPU + GPU package)
+  gpu_clock: number | null;            // MHz, amdgpu freq1 (sclk)
+  gpu_mem_used: number | null;         // bytes, VRAM + GTT
+  gpu_mem_total: number | null;
+  ram_used: number | null;             // bytes, MemTotal - MemAvailable
+  ram_total: number | null;
   totals: Totals | null;     // adjusted counters, for tiles
 }
 
@@ -150,15 +165,18 @@ interface Series {
   busy_for: ...; kv_waiting: ...; cache_entries: ...; cache_bytes: ...;
   cache_lookup_hit_rate: ...; cache_evictions_per_min: ...; cache_rewrites_per_min: ...;
   cache_disk_hits_per_min: ...; cache_disk_cut_backs_per_min: ...; cache_disk_bytes: ...;
+  cpu_use: ...; cpu_temp: ...; gpu_use: ...; gpu_temp: ...; nvme_temp: ...;
+  apu_power: ...; gpu_mem_used: ...; ram_used: ...;  // kept during an Outage
   // gauge maxima in each bucket, for spikes:
   busy_slots_max: ...; queued_max: ...; kv_use_max: ...;
   busy_for_max: ...; kv_waiting_max: ...;
+  cpu_temp_max: ...; gpu_temp_max: ...; apu_power_max: ...;
   status: (Status|null)[];          // worst status in the bucket
   totals_in_range: Totals;          // adjusted counter change from `from` to `to`
 }
 ```
 
-Gauge columns show the mean in each bucket. Rate columns use counter changes over the rate window, not the mean of Sample rates. `cache_stats_age`, `cache_disk_enabled` and `cache_disk_budget` are live Sample fields only.
+Gauge columns show the mean in each bucket. Rate columns use counter changes over the rate window, not the mean of Sample rates. `cache_stats_age`, `cache_disk_enabled`, `cache_disk_budget`, `gpu_clock`, `gpu_mem_total` and `ram_total` are live Sample fields only.
 
 `GET /api/events?from=<ms>&to=<ms>` returns `Event[]`, oldest first.
 

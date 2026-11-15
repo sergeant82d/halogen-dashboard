@@ -95,11 +95,22 @@ export class TimeBuffer {
       cache_disk_hits_per_min: x.cache_disk_hits_per_min ?? null,
       cache_disk_cut_backs_per_min: x.cache_disk_cut_backs_per_min ?? null,
       cache_disk_bytes: x.cache_disk_bytes ?? null,
+      cpu_use: x.cpu_use ?? null,
+      cpu_temp: x.cpu_temp ?? null,
+      gpu_use: x.gpu_use ?? null,
+      gpu_temp: x.gpu_temp ?? null,
+      nvme_temp: x.nvme_temp ?? null,
+      apu_power: x.apu_power ?? null,
+      gpu_mem_used: x.gpu_mem_used ?? null,
+      ram_used: x.ram_used ?? null,
       busy_slots_max: x.busy_slots,
       queued_max: x.queued,
       kv_use_max: x.kv_use,
       busy_for_max: x.busy_for ?? null,
       kv_waiting_max: x.kv_waiting ?? null,
+      cpu_temp_max: x.cpu_temp ?? null,
+      gpu_temp_max: x.gpu_temp ?? null,
+      apu_power_max: x.apu_power ?? null,
     };
     for (const f of SERIES_FIELDS) this.cols[f].push(row[f]);
     return true;

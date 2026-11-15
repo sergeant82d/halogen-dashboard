@@ -207,6 +207,17 @@ interface Values {
   cache_rewrites_per_min: number;
   cache_disk_hits_per_min: number;
   cache_disk_cut_backs_per_min: number;
+  cpu_use: number;
+  cpu_temp: number;
+  gpu_use: number;
+  gpu_temp: number;
+  nvme_temp: number;
+  apu_power: number;
+  gpu_clock: number;
+  gpu_mem_used: number;
+  gpu_mem_total: number;
+  ram_used: number;
+  ram_total: number;
 }
 
 /** Halogen 0.17.5+ fields of a Sample. An old Halogen sends null for all of them. */
@@ -294,6 +305,18 @@ function values(t: number): Values {
     cache_rewrites_per_min: rpm * (0.15 + n4 * 0.35),
     cache_disk_hits_per_min: rpm * (0.05 + n3 * 0.2),
     cache_disk_cut_backs_per_min: smooth(t, 20 * MIN, 42) > 0.8 ? 0.2 + n2 * 0.6 : 0,
+    // Host hardware of a Strix Halo with a resident model.
+    cpu_use: 0.04 + busy * 0.03 + n4 * 0.05,
+    cpu_temp: 44 + busy * 4 + n2 * 3,
+    gpu_use: Math.min(1, busy * 0.24 + (prefill === null ? 0 : 0.1) + n1 * 0.05),
+    gpu_temp: 42 + busy * 6 + n3 * 4,
+    nvme_temp: 38 + n4 * 4,
+    apu_power: 18 + busy * 22 + n1 * 6,
+    gpu_clock: busy > 0 ? 2700 + n2 * 200 : 600 + n2 * 400,
+    gpu_mem_used: 72 * 1024 ** 3 + kvUse * 8 * 1024 ** 3,
+    gpu_mem_total: 112 * 1024 ** 3,
+    ram_used: 80 * 1024 ** 3 + kvUse * 8 * 1024 ** 3 + n4 * 2 * 1024 ** 3,
+    ram_total: 122 * 1024 ** 3,
   };
 }
 
@@ -447,6 +470,14 @@ const FIELDS = [
   'cache_disk_hits_per_min',
   'cache_disk_cut_backs_per_min',
   'cache_disk_bytes',
+  'cpu_use',
+  'cpu_temp',
+  'gpu_use',
+  'gpu_temp',
+  'nvme_temp',
+  'apu_power',
+  'gpu_mem_used',
+  'ram_used',
 ] as const;
 const NEW_COLS = new Set<string>([...NEW_FIELDS, 'busy_for_max', 'kv_waiting_max']);
 const RANK: Record<Status, number> = { up: 0, degraded: 1, down: 2 };
@@ -466,6 +497,9 @@ function series(from: number, to: number, stepIn: number | null) {
   cols.kv_use_max = [];
   cols.busy_for_max = [];
   cols.kv_waiting_max = [];
+  cols.cpu_temp_max = [];
+  cols.gpu_temp_max = [];
+  cols.apu_power_max = [];
   const ts: number[] = [];
   const status: (Status | null)[] = [];
   const subN = raw ? 1 : Math.min(40, Math.max(4, Math.round(step / (3 * SEC))));
@@ -500,6 +534,9 @@ function series(from: number, to: number, stepIn: number | null) {
     cols.kv_use_max!.push(acc.kv_use ? acc.kv_use.max : null);
     cols.busy_for_max!.push(acc.busy_for ? acc.busy_for.max : null);
     cols.kv_waiting_max!.push(acc.kv_waiting ? acc.kv_waiting.max : null);
+    cols.cpu_temp_max!.push(acc.cpu_temp ? acc.cpu_temp.max : null);
+    cols.gpu_temp_max!.push(acc.gpu_temp ? acc.gpu_temp.max : null);
+    cols.apu_power_max!.push(acc.apu_power ? acc.apu_power.max : null);
   }
   if (legacy) for (const f of Object.keys(cols)) if (NEW_COLS.has(f)) cols[f] = cols[f]!.map(() => null);
   return {

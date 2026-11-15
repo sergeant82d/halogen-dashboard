@@ -52,6 +52,23 @@ export interface Sample {
   cache_rewrites_per_min: number | null;
   cache_disk_hits_per_min: number | null;
   cache_disk_cut_backs_per_min: number | null;
+  // Host hardware, read by the Collector. Null where the host has no such sensor.
+  /** Shares, 0 to 1. */
+  cpu_use: number | null;
+  gpu_use: number | null;
+  /** °C: CPU Tctl, GPU edge, NVMe composite. */
+  cpu_temp: number | null;
+  gpu_temp: number | null;
+  nvme_temp: number | null;
+  /** APU package power (CPU and GPU), W. */
+  apu_power: number | null;
+  /** GPU shader clock, MHz. */
+  gpu_clock: number | null;
+  /** GPU memory (VRAM + GTT) and system RAM, bytes. */
+  gpu_mem_used: number | null;
+  gpu_mem_total: number | null;
+  ram_used: number | null;
+  ram_total: number | null;
   totals: Totals | null;
 }
 
@@ -145,11 +162,22 @@ export const SERIES_FIELDS = [
   'cache_disk_hits_per_min',
   'cache_disk_cut_backs_per_min',
   'cache_disk_bytes',
+  'cpu_use',
+  'cpu_temp',
+  'gpu_use',
+  'gpu_temp',
+  'nvme_temp',
+  'apu_power',
+  'gpu_mem_used',
+  'ram_used',
   'busy_slots_max',
   'queued_max',
   'kv_use_max',
   'busy_for_max',
   'kv_waiting_max',
+  'cpu_temp_max',
+  'gpu_temp_max',
+  'apu_power_max',
 ] as const;
 
 export type SeriesField = (typeof SERIES_FIELDS)[number];

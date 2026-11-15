@@ -76,6 +76,29 @@ pub struct Sample {
     pub cache_rewrites_per_min: Option<f64>,
     pub cache_disk_hits_per_min: Option<f64>,
     pub cache_disk_cut_backs_per_min: Option<f64>,
+    // Host hardware, read by the Collector itself (hardware.rs). Kept during an Outage.
+    #[serde(default)]
+    pub cpu_use: Option<f64>,
+    #[serde(default)]
+    pub cpu_temp: Option<f64>,
+    #[serde(default)]
+    pub gpu_use: Option<f64>,
+    #[serde(default)]
+    pub gpu_temp: Option<f64>,
+    #[serde(default)]
+    pub nvme_temp: Option<f64>,
+    #[serde(default)]
+    pub apu_power: Option<f64>,
+    #[serde(default)]
+    pub gpu_clock: Option<f64>,
+    #[serde(default)]
+    pub gpu_mem_used: Option<f64>,
+    #[serde(default)]
+    pub gpu_mem_total: Option<f64>,
+    #[serde(default)]
+    pub ram_used: Option<f64>,
+    #[serde(default)]
+    pub ram_total: Option<f64>,
     pub totals: Option<Totals>,
 }
 
