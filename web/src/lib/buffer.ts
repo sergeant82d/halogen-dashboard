@@ -105,6 +105,8 @@ export class TimeBuffer {
       gpu_mem_used: x.gpu_mem_used ?? null,
       ram_used: x.ram_used ?? null,
       ttft: x.ttft ?? null,
+      prompt_size: x.prompt_size ?? null,
+      reply_size: x.reply_size ?? null,
       busy_slots_max: x.busy_slots,
       queued_max: x.queued,
       kv_use_max: x.kv_use,

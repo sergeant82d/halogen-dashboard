@@ -155,6 +155,18 @@ export const CHARTS: ChartDef[] = [
     ],
   },
   {
+    id: 'request-size',
+    title: 'Prompt and reply size per request',
+    lines: [
+      { field: 'prompt_size', label: 'Prompt', color: '--s1', scale: 'p', fmt: (v) => (v === null ? compact(v) : `${compact(v)} tokens`), fill: true },
+      { field: 'reply_size', label: 'Reply', color: '--s2', scale: 'r', fmt: (v) => (v === null ? compact(v) : `${compact(v)} tokens`) },
+    ],
+    axes: [
+      { scale: 'p', side: 'left', unit: 'prompt tokens', tick: numTick, minMax: 100 },
+      { scale: 'r', side: 'right', unit: 'reply tokens', tick: numTick, minMax: 10 },
+    ],
+  },
+  {
     id: 'cache-activity',
     title: 'Prompt-cache activity',
     wide: true,

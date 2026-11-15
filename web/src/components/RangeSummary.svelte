@@ -7,6 +7,7 @@
   const tokS: Fmt = (v) => (v === null ? rate(v) : `${rate(v)} tokens/s`);
   const celsius: Fmt = (v) => (v === null ? rate(v) : `${rate(v)} °C`);
   const watts: Fmt = (v) => (v === null ? rate(v) : `${rate(v)} W`);
+  const tokens: Fmt = (v) => (v === null ? compact(v) : `${compact(v)} tokens`);
   const perMin: Fmt = (v) => (v === null ? rate(v) : `${rate(v)}/min`);
 
   const GROUPS: { name: string; rows: { field: SeriesField; label: string; fmt: Fmt }[] }[] = [
@@ -21,6 +22,8 @@
         { field: 'kv_use', label: 'KV pool use', fmt: (v) => pct(v) },
         { field: 'requests_per_min', label: 'Requests/min', fmt: perMin },
         { field: 'mean_service_time', label: 'Mean service time', fmt: (v) => seconds(v) },
+        { field: 'prompt_size', label: 'Prompt size', fmt: tokens },
+        { field: 'reply_size', label: 'Reply size', fmt: tokens },
       ],
     },
     {

@@ -19,10 +19,12 @@
     { id: 'log', title: 'Event log' },
   ] as const;
   // Block ids: chart ids and panel ids overlap (kv, cache), so each kind has a prefix.
+  /** Charts that share a row by default. */
+  const HALF = new Set(['request-size', 'cache-activity']);
   const chartDef = new Map(CHARTS.map((c) => [`chart-${c.id}`, c]));
   const panelId = new Map(PANELS.map((p) => [`panel-${p.id}`, p.id]));
   layout.setDefaults([
-    ...CHARTS.map((c): BlockDef => ({ id: `chart-${c.id}`, title: c.title, width: c.wide ? 12 : 4 })),
+    ...CHARTS.map((c): BlockDef => ({ id: `chart-${c.id}`, title: c.title, width: HALF.has(c.id) ? 6 : c.wide ? 12 : 4 })),
     { id: 'summary', title: 'Range summary', width: 12 },
     ...PANELS.map((p): BlockDef => ({ id: `panel-${p.id}`, title: p.title, width: 3 })),
   ]);

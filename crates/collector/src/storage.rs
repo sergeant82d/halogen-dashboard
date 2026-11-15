@@ -16,9 +16,9 @@ pub const DAY_MS: i64 = 24 * HOUR_MS;
 pub const HOURLY_MS: i64 = 366 * DAY_MS;
 /// The Halogen fields come first; an Outage blanks only those.
 const HALOGEN_FIELDS: usize = 25;
-/// A Halogen rate added after the hardware fields.
-const TTFT: usize = 33;
-pub const FIELDS: [&str; 34] = [
+/// Halogen rates added after the hardware fields: ttft, prompt_size, reply_size.
+const LATE_RATES: std::ops::Range<usize> = 33..36;
+pub const FIELDS: [&str; 36] = [
     "busy_slots",
     "queued",
     "kv_used",
@@ -53,6 +53,8 @@ pub const FIELDS: [&str; 34] = [
     "gpu_mem_used",
     "ram_used",
     "ttft",
+    "prompt_size",
+    "reply_size",
 ];
 
 fn values(frame: &Frame) -> [Option<f64>; FIELDS.len()] {
@@ -94,6 +96,8 @@ fn values(frame: &Frame) -> [Option<f64>; FIELDS.len()] {
         s.gpu_mem_used,
         s.ram_used,
         s.ttft,
+        s.prompt_size,
+        s.reply_size,
     ]
 }
 
@@ -420,7 +424,7 @@ impl Store {
             if let Some(r) = r.filter(|_| !long) {
                 if r.status == Status::Down {
                     vs[..HALOGEN_FIELDS].fill(None);
-                    vs[TTFT] = None;
+                    vs[LATE_RATES].fill(None);
                 } else {
                     let last = &r.last;
                     let boundary = last.sample.t - window;
@@ -449,7 +453,7 @@ impl Store {
                         s.cache_disk_hits_per_min,
                         s.cache_disk_cut_backs_per_min,
                     ]);
-                    vs[TTFT] = s.ttft;
+                    vs[LATE_RATES].copy_from_slice(&[s.ttft, s.prompt_size, s.reply_size]);
                 }
             }
             for (name, v) in FIELDS.iter().zip(vs) {

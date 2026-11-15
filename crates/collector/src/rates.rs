@@ -235,6 +235,8 @@ pub fn apply_rates(sample: &mut Sample, first: &Frame, last: &Frame, _window_ms:
     sample.requests_per_min = Some(d[0] / wall * 60.0);
     sample.mean_service_time = ratio(d[7] + d[8], d[0]);
     sample.ttft = ratio(d[7], d[0]);
+    sample.prompt_size = ratio(d[1] + d[3], d[0]);
+    sample.reply_size = ratio(d[2], d[0]);
     sample.prompt_cache_hit_rate = ratio(d[3], d[3] + d[1]);
     sample.draft_acceptance = ratio(d[5], d[4]);
     let d: [Option<f64>; 6] = std::array::from_fn(|i| {
@@ -360,6 +362,12 @@ mod tests {
         let mut s = Sample::default();
         apply_rates(&mut s, &first, &last, 30_000);
         assert_eq!(s.ttft, Some(0.75));
+        last.counters[1] = 100.0;
+        last.counters[2] = 40.0;
+        last.counters[3] = 300.0;
+        apply_rates(&mut s, &first, &last, 30_000);
+        assert_eq!(s.prompt_size, Some(100.0));
+        assert_eq!(s.reply_size, Some(10.0));
         first.counters[0] = 4.0;
         apply_rates(&mut s, &first, &last, 30_000);
         assert_eq!(s.ttft, None);
