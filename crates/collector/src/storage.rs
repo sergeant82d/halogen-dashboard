@@ -18,7 +18,7 @@ pub const HOURLY_MS: i64 = 366 * DAY_MS;
 const HALOGEN_FIELDS: usize = 25;
 /// Halogen rates added after the hardware fields: ttft, prompt_size, reply_size.
 const LATE_RATES: std::ops::Range<usize> = 33..36;
-pub const FIELDS: [&str; 36] = [
+pub const FIELDS: [&str; 37] = [
     "busy_slots",
     "queued",
     "kv_used",
@@ -55,6 +55,7 @@ pub const FIELDS: [&str; 36] = [
     "ttft",
     "prompt_size",
     "reply_size",
+    "npu_use",
 ];
 
 fn values(frame: &Frame) -> [Option<f64>; FIELDS.len()] {
@@ -98,6 +99,7 @@ fn values(frame: &Frame) -> [Option<f64>; FIELDS.len()] {
         s.ttft,
         s.prompt_size,
         s.reply_size,
+        s.npu_use,
     ]
 }
 

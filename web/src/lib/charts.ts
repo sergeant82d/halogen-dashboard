@@ -184,10 +184,11 @@ export const CHARTS: ChartDef[] = [
   },
   {
     id: 'hw-use',
-    title: 'CPU use, GPU use and APU power',
+    title: 'CPU, GPU and NPU use, APU power',
     lines: [
       { field: 'gpu_use', label: 'GPU use', color: '--s1', scale: 'pct', fmt: (v) => pct(v), fill: true },
       { field: 'cpu_use', label: 'CPU use', color: '--s2', scale: 'pct', fmt: (v) => pct(v) },
+      { field: 'npu_use', label: 'NPU use', color: '--s3', scale: 'pct', fmt: (v) => pct(v) },
       { field: 'apu_power', label: 'APU power', color: '--s4', scale: 'w', fmt: watts, maxOf: 'apu_power_max' },
     ],
     axes: [

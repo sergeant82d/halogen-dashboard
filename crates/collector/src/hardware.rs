@@ -26,6 +26,23 @@ fn read_f64(path: &Path) -> Option<f64> {
     read(path)?.parse().ok()
 }
 
+/// NPU use from the GPU card's gpu_metrics: the mean of `average_ipu_activity[8]` (per-column busy %, 0-100) in
+/// format 3.0 (APUs with an XDNA NPU). The in-tree amdxdna driver gives no busy counter, the firmware does.
+/// Columns the firmware does not fill (0xFFFF) are skipped; other formats give None.
+fn npu_use(path: &Path) -> Option<f64> {
+    let b = std::fs::read(path).ok()?;
+    if b.len() < 62 || b[2] != 3 || b[3] != 0 {
+        return None;
+    }
+    let cols: Vec<f64> = b[46..62]
+        .chunks(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .filter(|v| *v <= 100)
+        .map(f64::from)
+        .collect();
+    (!cols.is_empty()).then(|| cols.iter().sum::<f64>() / cols.len() as f64 / 100.0)
+}
+
 impl Hardware {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self {
@@ -105,6 +122,7 @@ impl Hardware {
         let gpu = self.gpu();
         let gpu_value = |file: &str| gpu.as_ref().and_then(|d| read_f64(&d.join(file)));
         s.gpu_use = gpu_value("gpu_busy_percent").map(|v| v / 100.0);
+        s.npu_use = gpu.as_ref().and_then(|d| npu_use(&d.join("gpu_metrics")));
         // Strix Halo keeps most GPU memory in GTT (system memory the GPU maps), so count VRAM and GTT together.
         let sum = |a: Option<f64>, b: Option<f64>| a.zip(b).map(|(a, b)| a + b);
         s.gpu_mem_used = sum(
@@ -175,6 +193,13 @@ mod tests {
             "sys/class/drm/card0/device/mem_info_gtt_total",
             "120000000000\n",
         );
+        // gpu_metrics v3.0: 4-byte header, 19 temperatures, gfx and vcn busy, then the 8 NPU columns at byte 46.
+        let mut metrics = vec![0u8; 264];
+        metrics[..4].copy_from_slice(&[8, 1, 3, 0]);
+        for (i, v) in [100u16, 50, 0, 0, 30, 0, 0, 0xFFFF].iter().enumerate() {
+            metrics[46 + 2 * i..48 + 2 * i].copy_from_slice(&v.to_le_bytes());
+        }
+        std::fs::write(root.join("sys/class/drm/card0/device/gpu_metrics"), metrics).unwrap();
         write(
             &root,
             "proc/meminfo",
@@ -196,6 +221,7 @@ mod tests {
         assert_eq!(s.apu_power, Some(61.0));
         assert_eq!(s.gpu_clock, Some(2900.0));
         assert_eq!(s.gpu_use, Some(0.37));
+        assert_eq!(s.npu_use, Some(180.0 / 7.0 / 100.0));
         assert_eq!(s.gpu_mem_used, Some(39938921448.0));
         assert_eq!(s.gpu_mem_total, Some(120000004000.0));
         assert_eq!(s.ram_total, Some(128134844.0 * 1024.0));
@@ -216,5 +242,6 @@ mod tests {
         hw.apply(&mut s);
         assert!(s.cpu_use.is_none() && s.cpu_temp.is_none() && s.gpu_use.is_none());
         assert!(s.apu_power.is_none() && s.ram_used.is_none() && s.gpu_mem_used.is_none());
+        assert!(s.npu_use.is_none());
     }
 }

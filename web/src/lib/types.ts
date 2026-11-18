@@ -61,6 +61,8 @@ export interface Sample {
   /** Shares, 0 to 1. */
   cpu_use: number | null;
   gpu_use: number | null;
+  /** NPU: mean busy share of its columns (firmware gpu_metrics). */
+  npu_use: number | null;
   /** °C: CPU Tctl, GPU edge, NVMe composite. */
   cpu_temp: number | null;
   gpu_temp: number | null;
@@ -178,6 +180,7 @@ export const SERIES_FIELDS = [
   'ttft',
   'prompt_size',
   'reply_size',
+  'npu_use',
   'busy_slots_max',
   'queued_max',
   'kv_use_max',

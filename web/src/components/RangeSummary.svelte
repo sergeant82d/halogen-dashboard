@@ -31,6 +31,7 @@
       rows: [
         { field: 'gpu_use', label: 'GPU use', fmt: (v) => pct(v) },
         { field: 'cpu_use', label: 'CPU use', fmt: (v) => pct(v) },
+        { field: 'npu_use', label: 'NPU use', fmt: (v) => pct(v) },
         { field: 'gpu_temp', label: 'GPU temperature', fmt: celsius },
         { field: 'cpu_temp', label: 'CPU temperature', fmt: celsius },
         { field: 'nvme_temp', label: 'SSD temperature', fmt: celsius },

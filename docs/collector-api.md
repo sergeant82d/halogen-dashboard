@@ -37,7 +37,7 @@ A failed `/metrics` Scrape starts or continues an Outage. The Sample for that ti
 
 ## Hardware
 
-With each `/metrics` tick the Collector also reads its own host: `/proc/stat`, `/proc/meminfo`, the hwmon devices `k10temp`, `amdgpu` and `nvme` in `/sys/class/hwmon`, and the first amdgpu card in `/sys/class/drm` (`gpu_busy_percent`, `mem_info_*`). In a container these are the host's files. A value the host does not offer is `null`. GPU memory is VRAM + GTT: on Strix Halo most GPU memory is GTT.
+With each `/metrics` tick the Collector also reads its own host: `/proc/stat`, `/proc/meminfo`, the hwmon devices `k10temp`, `amdgpu` and `nvme` in `/sys/class/hwmon`, and the first amdgpu card in `/sys/class/drm` (`gpu_busy_percent`, `mem_info_*`, and `gpu_metrics` for NPU use). In a container these are the host's files. A value the host does not offer is `null`. GPU memory is VRAM + GTT: on Strix Halo most GPU memory is GTT.
 
 ## Rate calculation
 
@@ -108,6 +108,7 @@ interface Sample {
   cpu_use: number | null;              // 0..1, not idle or iowait since the last tick
   cpu_temp: number | null;             // °C, k10temp temp1 (Tctl)
   gpu_use: number | null;              // 0..1, gpu_busy_percent
+  npu_use: number | null;              // 0..1, mean of gpu_metrics v3.0 average_ipu_activity[8] (NPU columns)
   gpu_temp: number | null;             // °C, amdgpu temp1 (edge)
   nvme_temp: number | null;            // °C, nvme temp1 (composite)
   apu_power: number | null;            // W, amdgpu power1_average (PPT: CPU + GPU package)
@@ -174,7 +175,7 @@ interface Series {
   cache_lookup_hit_rate: ...; cache_evictions_per_min: ...; cache_rewrites_per_min: ...;
   cache_disk_hits_per_min: ...; cache_disk_cut_backs_per_min: ...; cache_disk_bytes: ...;
   cpu_use: ...; cpu_temp: ...; gpu_use: ...; gpu_temp: ...; nvme_temp: ...;
-  apu_power: ...; gpu_mem_used: ...; ram_used: ...;  // kept during an Outage
+  apu_power: ...; gpu_mem_used: ...; ram_used: ...; npu_use: ...;  // kept during an Outage
   // gauge maxima in each bucket, for spikes:
   busy_slots_max: ...; queued_max: ...; kv_use_max: ...;
   busy_for_max: ...; kv_waiting_max: ...;

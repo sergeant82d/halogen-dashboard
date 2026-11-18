@@ -175,6 +175,12 @@
         <div class="glabel"><span>CPU use</span><span class="num">{pct(latest.cpu_use)}</span></div>
         <Meter value={latest.cpu_use ?? null} label="CPU use" />
       </div>
+      {#if latest.npu_use != null}
+        <div class="gauge">
+          <div class="glabel"><span>NPU use</span><span class="num">{pct(latest.npu_use)}</span></div>
+          <Meter value={latest.npu_use} label="NPU use" />
+        </div>
+      {/if}
       <div class="gauge">
         <div class="glabel">
           <span>GPU memory</span>

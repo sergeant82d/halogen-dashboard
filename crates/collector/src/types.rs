@@ -92,6 +92,9 @@ pub struct Sample {
     pub cpu_temp: Option<f64>,
     #[serde(default)]
     pub gpu_use: Option<f64>,
+    /// 0..1, mean of the NPU columns' busy % in the firmware's gpu_metrics (v3.0, Strix Point/Halo).
+    #[serde(default)]
+    pub npu_use: Option<f64>,
     #[serde(default)]
     pub gpu_temp: Option<f64>,
     #[serde(default)]

@@ -213,6 +213,7 @@ interface Values {
   cpu_use: number;
   cpu_temp: number;
   gpu_use: number;
+  npu_use: number;
   gpu_temp: number;
   nvme_temp: number;
   apu_power: number;
@@ -315,6 +316,7 @@ function values(t: number): Values {
     cpu_use: 0.04 + busy * 0.03 + n4 * 0.05,
     cpu_temp: 44 + busy * 4 + n2 * 3,
     gpu_use: Math.min(1, busy * 0.24 + (prefill === null ? 0 : 0.1) + n1 * 0.05),
+    npu_use: smooth(t, 3 * MIN, 7) > 0.7 ? 0.6 + n2 * 0.35 : 0,
     gpu_temp: 42 + busy * 6 + n3 * 4,
     nvme_temp: 38 + n4 * 4,
     apu_power: 18 + busy * 22 + n1 * 6,
@@ -487,6 +489,7 @@ const FIELDS = [
   'ttft',
   'prompt_size',
   'reply_size',
+  'npu_use',
 ] as const;
 const NEW_COLS = new Set<string>([...NEW_FIELDS, 'busy_for_max', 'kv_waiting_max']);
 const RANK: Record<Status, number> = { up: 0, degraded: 1, down: 2 };

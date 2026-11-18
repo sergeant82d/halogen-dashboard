@@ -107,6 +107,7 @@ export class TimeBuffer {
       ttft: x.ttft ?? null,
       prompt_size: x.prompt_size ?? null,
       reply_size: x.reply_size ?? null,
+      npu_use: x.npu_use ?? null,
       busy_slots_max: x.busy_slots,
       queued_max: x.queued,
       kv_use_max: x.kv_use,
