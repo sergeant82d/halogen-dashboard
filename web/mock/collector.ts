@@ -214,6 +214,12 @@ interface Values {
   cpu_temp: number;
   gpu_use: number;
   npu_use: number;
+  ssd_read: number;
+  ssd_write: number;
+  hdd_read: number;
+  hdd_write: number;
+  net_in: number;
+  net_out: number;
   gpu_temp: number;
   nvme_temp: number;
   apu_power: number;
@@ -317,6 +323,12 @@ function values(t: number): Values {
     cpu_temp: 44 + busy * 4 + n2 * 3,
     gpu_use: Math.min(1, busy * 0.24 + (prefill === null ? 0 : 0.1) + n1 * 0.05),
     npu_use: smooth(t, 3 * MIN, 7) > 0.7 ? 0.6 + n2 * 0.35 : 0,
+    ssd_read: n1 * 40e6 * busy,
+    ssd_write: n2 * 8e6,
+    hdd_read: 0,
+    hdd_write: smooth(t, 30 * MIN, 9) > 0.85 ? 120e6 * n3 : 0,
+    net_in: 2e5 + n4 * 3e6,
+    net_out: 1e5 + n1 * 1e6,
     gpu_temp: 42 + busy * 6 + n3 * 4,
     nvme_temp: 38 + n4 * 4,
     apu_power: 18 + busy * 22 + n1 * 6,
@@ -490,6 +502,12 @@ const FIELDS = [
   'prompt_size',
   'reply_size',
   'npu_use',
+  'ssd_read',
+  'ssd_write',
+  'hdd_read',
+  'hdd_write',
+  'net_in',
+  'net_out',
 ] as const;
 const NEW_COLS = new Set<string>([...NEW_FIELDS, 'busy_for_max', 'kv_waiting_max']);
 const RANK: Record<Status, number> = { up: 0, degraded: 1, down: 2 };

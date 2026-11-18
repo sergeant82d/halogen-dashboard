@@ -5,6 +5,7 @@
   import Header from './components/Header.svelte';
   import Panels from './components/Panels.svelte';
   import RangeSummary from './components/RangeSummary.svelte';
+  import SystemCard from './components/SystemCard.svelte';
   import Tiles from './components/Tiles.svelte';
   import { CHARTS } from './lib/charts';
   import { layout, type BlockDef } from './lib/layout.svelte';
@@ -24,6 +25,7 @@
   const chartDef = new Map(CHARTS.map((c) => [`chart-${c.id}`, c]));
   const panelId = new Map(PANELS.map((p) => [`panel-${p.id}`, p.id]));
   layout.setDefaults([
+    { id: 'system', title: 'System', width: 12 },
     ...CHARTS.map((c): BlockDef => ({ id: `chart-${c.id}`, title: c.title, width: HALF.has(c.id) ? 6 : c.wide ? 12 : 4 })),
     { id: 'summary', title: 'Range summary', width: 12 },
     ...PANELS.map((p): BlockDef => ({ id: `panel-${p.id}`, title: p.title, width: 3 })),
@@ -69,6 +71,8 @@
       <Block block={b} first={i === 0} last={i === blocks.length - 1}>
         {#if chartDef.has(b.id)}
           <Chart def={chartDef.get(b.id)!} />
+        {:else if b.id === 'system'}
+          <SystemCard />
         {:else if b.id === 'summary'}
           <RangeSummary />
         {:else if panelId.has(b.id)}

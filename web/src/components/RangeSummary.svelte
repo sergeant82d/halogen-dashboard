@@ -7,6 +7,7 @@
   const tokS: Fmt = (v) => (v === null ? rate(v) : `${rate(v)} tokens/s`);
   const celsius: Fmt = (v) => (v === null ? rate(v) : `${rate(v)} °C`);
   const watts: Fmt = (v) => (v === null ? rate(v) : `${rate(v)} W`);
+  const perSec: Fmt = (v) => (v === null ? bytes(v) : `${bytes(v)}/s`);
   const tokens: Fmt = (v) => (v === null ? compact(v) : `${compact(v)} tokens`);
   const perMin: Fmt = (v) => (v === null ? rate(v) : `${rate(v)}/min`);
 
@@ -38,6 +39,12 @@
         { field: 'apu_power', label: 'APU power', fmt: watts },
         { field: 'gpu_mem_used', label: 'GPU memory', fmt: (v) => bytes(v) },
         { field: 'ram_used', label: 'RAM', fmt: (v) => bytes(v) },
+        { field: 'ssd_read', label: 'SSD read', fmt: perSec },
+        { field: 'ssd_write', label: 'SSD write', fmt: perSec },
+        { field: 'hdd_read', label: 'HDD read', fmt: perSec },
+        { field: 'hdd_write', label: 'HDD write', fmt: perSec },
+        { field: 'net_in', label: 'Network in', fmt: perSec },
+        { field: 'net_out', label: 'Network out', fmt: perSec },
       ],
     },
   ];

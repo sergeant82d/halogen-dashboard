@@ -63,6 +63,13 @@ export interface Sample {
   gpu_use: number | null;
   /** NPU: mean busy share of its columns (firmware gpu_metrics). */
   npu_use: number | null;
+  /** Bytes per second: SSD and spinning-disk reads/writes, network in/out. */
+  ssd_read: number | null;
+  ssd_write: number | null;
+  hdd_read: number | null;
+  hdd_write: number | null;
+  net_in: number | null;
+  net_out: number | null;
   /** °C: CPU Tctl, GPU edge, NVMe composite. */
   cpu_temp: number | null;
   gpu_temp: number | null;
@@ -181,6 +188,12 @@ export const SERIES_FIELDS = [
   'prompt_size',
   'reply_size',
   'npu_use',
+  'ssd_read',
+  'ssd_write',
+  'hdd_read',
+  'hdd_write',
+  'net_in',
+  'net_out',
   'busy_slots_max',
   'queued_max',
   'kv_use_max',

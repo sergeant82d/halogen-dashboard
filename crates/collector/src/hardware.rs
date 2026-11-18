@@ -1,4 +1,5 @@
-//! Host hardware values from Linux sysfs and procfs: CPU and GPU use, temperatures, APU power and memory.
+//! Host hardware values from Linux sysfs and procfs: CPU, GPU and NPU use, temperatures, APU power, memory, disk
+//! and network traffic.
 //! Values the host does not offer stay None, so the dashboard shows a dash.
 
 use crate::types::Sample;
@@ -8,6 +9,11 @@ pub struct Hardware {
     root: PathBuf,
     /// (total, idle) jiffies of the last read of /proc/stat.
     prev_cpu: Option<(u64, u64)>,
+    /// Sample time (ms) and byte counters of the last disk and network read (see `io_counters`).
+    prev_io: Option<(i64, [Option<u64>; 6])>,
+    /// The host's /proc/net/dev. In a container /proc/net/dev is the container's own network, so the host's file is
+    /// mounted in and named by HALOGEN_DASHBOARD_NET_DEV (the Quadlet mounts /proc/1/net/dev).
+    net_dev: PathBuf,
 }
 
 impl Default for Hardware {
@@ -45,10 +51,57 @@ fn npu_use(path: &Path) -> Option<f64> {
 
 impl Hardware {
     pub fn new(root: impl Into<PathBuf>) -> Self {
+        let root = root.into();
+        let net_dev = std::env::var_os("HALOGEN_DASHBOARD_NET_DEV")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| root.join("proc/net/dev"));
         Self {
-            root: root.into(),
+            root,
             prev_cpu: None,
+            prev_io: None,
+            net_dev,
         }
+    }
+
+    /// Bytes read and written since boot by SSDs and by spinning disks (whole disks with a device in /sys/block,
+    /// split by queue/rotational), then bytes received and sent by the network interfaces other than loopback and
+    /// virtual ones. A kind the host does not have stays None.
+    fn io_counters(&self) -> [Option<u64>; 6] {
+        let mut c = [None; 6];
+        let mut add = |i: usize, v: u64| c[i] = Some(c[i].unwrap_or(0) + v);
+        if let Some(stats) = read(&self.root.join("proc/diskstats")) {
+            for line in stats.lines() {
+                let f: Vec<&str> = line.split_whitespace().collect();
+                let Some(name) = f.get(2) else { continue };
+                let block = self.root.join("sys/block").join(name);
+                if !block.join("device").exists() {
+                    continue; // partitions, loop, device-mapper
+                }
+                let sectors = |i: usize| f.get(i).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0) * 512;
+                let k = if read(&block.join("queue/rotational")).as_deref() == Some("1") { 2 } else { 0 };
+                add(k, sectors(5));
+                add(k + 1, sectors(9));
+            }
+        }
+        if let Some(dev) = read(&self.net_dev) {
+            for line in dev.lines().skip(2) {
+                let Some((name, rest)) = line.split_once(':') else { continue };
+                let name = name.trim();
+                if name == "lo"
+                    || ["veth", "br-", "docker", "podman", "virbr", "tap", "tun", "cni"]
+                        .iter()
+                        .any(|p| name.starts_with(p))
+                {
+                    continue;
+                }
+                let f: Vec<u64> = rest.split_whitespace().filter_map(|v| v.parse().ok()).collect();
+                if f.len() >= 9 {
+                    add(4, f[0]);
+                    add(5, f[8]);
+                }
+            }
+        }
+        c
     }
 
     /// The first hwmon device with this name, such as k10temp, amdgpu or nvme.
@@ -101,6 +154,16 @@ impl Hardware {
     /// Fills the hardware fields of a Sample.
     pub fn apply(&mut self, s: &mut Sample) {
         s.cpu_use = self.cpu_use();
+        // Bytes per second since the last Sample; None on the first call and when a counter went back (reboot).
+        let io = self.io_counters();
+        let rates: [Option<f64>; 6] = match self.prev_io.replace((s.t, io)) {
+            Some((pt, prev)) if s.t > pt => std::array::from_fn(|i| {
+                let d = io[i]?.checked_sub(prev[i]?)?;
+                Some(d as f64 * 1000.0 / (s.t - pt) as f64)
+            }),
+            _ => [None; 6],
+        };
+        [s.ssd_read, s.ssd_write, s.hdd_read, s.hdd_write, s.net_in, s.net_out] = rates;
         let celsius = |dir: &Option<PathBuf>| {
             dir.as_ref()
                 .and_then(|d| read_f64(&d.join("temp1_input")))
@@ -211,10 +274,34 @@ mod tests {
             "cpu  100 0 100 700 100 0 0 0 0 0\ncpu0 1 2 3\n",
         );
 
+        // An SSD with a partition, a spinning disk, a loop device; loopback, a NIC and a container veth.
+        write(&root, "sys/block/nvme0n1/device/x", "");
+        write(&root, "sys/block/nvme0n1/queue/rotational", "0\n");
+        write(&root, "sys/block/sda/device/x", "");
+        write(&root, "sys/block/sda/queue/rotational", "1\n");
+        write(&root, "sys/block/loop0/queue/rotational", "0\n");
+        let diskstats = |ssd: u64, hdd: u64| {
+            format!(
+                " 259 0 nvme0n1 1 0 {ssd} 0 1 0 {} 0 0 0 0\n 259 1 nvme0n1p1 1 0 {ssd} 0 1 0 {ssd} 0 0 0 0\n   8 0 sda 1 0 {hdd} 0 1 0 0 0 0 0 0\n   7 0 loop0 1 0 999 0 1 0 999 0 0 0 0\n",
+                ssd * 2
+            )
+        };
+        let netdev = |rx: u64, tx: u64| {
+            format!(
+                "Inter-| head\n face | head\n    lo: 999 1 0 0 0 0 0 0 999 1 0 0 0 0 0 0\nenp98s0: {rx} 1 0 0 0 0 0 0 {tx} 1 0 0 0 0 0 0\nveth0: 999 1 0 0 0 0 0 0 999 1 0 0 0 0 0 0\n"
+            )
+        };
+        write(&root, "proc/diskstats", &diskstats(1000, 2000));
+        write(&root, "proc/net/dev", &netdev(5000, 6000));
+
         let mut hw = Hardware::new(&root);
-        let mut s = Sample::default();
+        let mut s = Sample {
+            t: 10_000,
+            ..Default::default()
+        };
         hw.apply(&mut s);
         assert_eq!(s.cpu_use, None);
+        assert_eq!(s.ssd_read, None);
         assert_eq!(s.cpu_temp, Some(43.75));
         assert_eq!(s.gpu_temp, Some(42.0));
         assert_eq!(s.nvme_temp, Some(38.85));
@@ -229,8 +316,18 @@ mod tests {
 
         // 100 more jiffies, 25 of them idle or iowait.
         write(&root, "proc/stat", "cpu  150 0 125 720 105 0 0 0 0 0\n");
+        // 2 s later: SSD +1000 sectors read, +2000 written; HDD +4000 read; 2000 bytes in, 8000 out.
+        write(&root, "proc/diskstats", &diskstats(2000, 6000));
+        write(&root, "proc/net/dev", &netdev(7000, 14000));
+        s.t = 12_000;
         hw.apply(&mut s);
         assert_eq!(s.cpu_use, Some(0.75));
+        assert_eq!(s.ssd_read, Some(1000.0 * 512.0 / 2.0));
+        assert_eq!(s.ssd_write, Some(2000.0 * 512.0 / 2.0));
+        assert_eq!(s.hdd_read, Some(4000.0 * 512.0 / 2.0));
+        assert_eq!(s.hdd_write, Some(0.0));
+        assert_eq!(s.net_in, Some(1000.0));
+        assert_eq!(s.net_out, Some(4000.0));
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -242,6 +339,6 @@ mod tests {
         hw.apply(&mut s);
         assert!(s.cpu_use.is_none() && s.cpu_temp.is_none() && s.gpu_use.is_none());
         assert!(s.apu_power.is_none() && s.ram_used.is_none() && s.gpu_mem_used.is_none());
-        assert!(s.npu_use.is_none());
+        assert!(s.npu_use.is_none() && s.ssd_read.is_none() && s.net_in.is_none());
     }
 }

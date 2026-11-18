@@ -37,6 +37,8 @@
   const share = (used: number | null | undefined, total: number | null | undefined) =>
     used != null && total ? used / total : null;
   const deg = (v: number | null | undefined) => (v == null ? DASH : `${rate(v)} °C`);
+  const io = (a: number | null | undefined, b: number | null | undefined) =>
+    a == null && b == null ? DASH : `${bytes(a)}/s / ${bytes(b)}/s`;
 
   function evText(e: HEvent): string {
     switch (e.kind) {
@@ -197,6 +199,9 @@
         <dt>CPU temperature</dt><dd class="num">{deg(latest.cpu_temp)}</dd>
         <dt>SSD temperature</dt><dd class="num">{deg(latest.nvme_temp)}</dd>
         <dt>GPU clock</dt><dd class="num">{latest.gpu_clock == null ? DASH : `${int(latest.gpu_clock)} MHz`}</dd>
+        <dt>SSD read / write</dt><dd class="num">{io(latest.ssd_read, latest.ssd_write)}</dd>
+        {#if latest.hdd_read != null}<dt>HDD read / write</dt><dd class="num">{io(latest.hdd_read, latest.hdd_write)}</dd>{/if}
+        <dt>Network in / out</dt><dd class="num">{io(latest.net_in, latest.net_out)}</dd>
       </dl>
     {:else}
       <p class="none">The Collector's host reports no hardware values.</p>

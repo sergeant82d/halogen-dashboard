@@ -95,6 +95,19 @@ pub struct Sample {
     /// 0..1, mean of the NPU columns' busy % in the firmware's gpu_metrics (v3.0, Strix Point/Halo).
     #[serde(default)]
     pub npu_use: Option<f64>,
+    /// Bytes per second: SSDs and spinning disks read/written, network received/sent (physical interfaces).
+    #[serde(default)]
+    pub ssd_read: Option<f64>,
+    #[serde(default)]
+    pub ssd_write: Option<f64>,
+    #[serde(default)]
+    pub hdd_read: Option<f64>,
+    #[serde(default)]
+    pub hdd_write: Option<f64>,
+    #[serde(default)]
+    pub net_in: Option<f64>,
+    #[serde(default)]
+    pub net_out: Option<f64>,
     #[serde(default)]
     pub gpu_temp: Option<f64>,
     #[serde(default)]

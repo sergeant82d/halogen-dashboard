@@ -44,6 +44,7 @@ const numTick = (v: number) => compact(v);
 const secTick = (v: number) => (v < 1 && v > 0 ? `${Math.round(v * 1000)} ms` : `${compact(v)} s`);
 const celsius = (v: number | null) => (v === null ? rate(v) : `${rate(v)} °C`);
 const watts = (v: number | null) => (v === null ? rate(v) : `${rate(v)} W`);
+const perSec = (v: number | null) => (v === null ? bytes(v) : `${bytes(v)}/s`);
 const perMin = (v: number | null) => (v === null ? rate(v) : `${rate(v)}/min`);
 const count = (v: number | null) => compact(v);
 const tickNf = (d: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: d });
@@ -214,5 +215,25 @@ export const CHARTS: ChartDef[] = [
       { field: 'ram_used', label: 'RAM', color: '--s2', scale: 'bytes', fmt: (v) => bytes(v) },
     ],
     axes: [{ scale: 'bytes', side: 'left', unit: 'bytes', tick: byteTick, minMax: 1024 ** 3, binary: true }],
+  },
+  {
+    id: 'hw-disk',
+    title: 'Disk traffic',
+    lines: [
+      { field: 'ssd_read', label: 'SSD read', color: '--s1', scale: 'bps', fmt: perSec, fill: true },
+      { field: 'ssd_write', label: 'SSD write', color: '--s2', scale: 'bps', fmt: perSec },
+      { field: 'hdd_read', label: 'HDD read', color: '--s3', scale: 'bps', fmt: perSec },
+      { field: 'hdd_write', label: 'HDD write', color: '--s4', scale: 'bps', fmt: perSec },
+    ],
+    axes: [{ scale: 'bps', side: 'left', unit: 'bytes/s', tick: byteTick, minMax: 1024 * 1024, binary: true }],
+  },
+  {
+    id: 'hw-net',
+    title: 'Network traffic',
+    lines: [
+      { field: 'net_in', label: 'In', color: '--s5', scale: 'bps', fmt: perSec, fill: true },
+      { field: 'net_out', label: 'Out', color: '--s4', scale: 'bps', fmt: perSec },
+    ],
+    axes: [{ scale: 'bps', side: 'left', unit: 'bytes/s', tick: byteTick, minMax: 1024 * 1024, binary: true }],
   },
 ];

@@ -3,9 +3,15 @@
   import { dash } from '../lib/store.svelte';
   import { cssVar, theme } from '../lib/theme.svelte';
   import { alpha } from '../lib/color';
+  import type { ColorVar } from '../lib/charts';
   import type { SeriesField } from '../lib/types';
 
-  let { field, max = null, tone = 'none' }: { field: SeriesField; max?: number | null; tone?: string } = $props();
+  let {
+    field,
+    max = null,
+    tone = 'none',
+    color: lineColor = '--s1',
+  }: { field: SeriesField; max?: number | null; tone?: string; color?: ColorVar } = $props();
 
   let canvas: HTMLCanvasElement;
   let w = $state(0);
@@ -36,7 +42,7 @@
     const pad = 2 * dpr;
     const x = (tt: number) => ((tt - t0) / (t1 - t0)) * W;
     const y = (v: number) => H - pad - (Math.min(v, hi) / hi) * (H - pad * 2);
-    const color = cssVar(tone === 'crit' ? '--down' : tone === 'warn' ? '--degraded' : '--s1');
+    const color = cssVar(tone === 'crit' ? '--down' : tone === 'warn' ? '--degraded' : lineColor);
 
     // area
     ctx.fillStyle = alpha(color, 0.14);
@@ -99,6 +105,7 @@
     void dash.liveVersion;
     void theme.resolved;
     void tone;
+    void lineColor;
     void w;
     void h;
     draw();
